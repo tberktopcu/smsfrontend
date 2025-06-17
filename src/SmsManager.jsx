@@ -292,7 +292,7 @@ export default function SmsManager() {
                     {infos.length === 0 && (
                         <tr>
                             <td colSpan={5} style={{ padding: 16, textAlign: "center", color: "#777" }}>
-                                Kayıtlı SMS bulunmamaktadır.
+                                Kayıtlı SMS Şablonu bulunmamaktadır.
                             </td>
                         </tr>
                     )}
