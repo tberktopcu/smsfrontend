@@ -1,6 +1,6 @@
 ﻿import React, { useEffect, useState } from "react";
 
-const API_BASE_URL = "http://localhost:5252/api";
+const API_BASE_URL = "https://smsbackend-t1kx.onrender.com";
 
 export default function SmsManager() {
     const [infos, setInfos] = useState([]);
