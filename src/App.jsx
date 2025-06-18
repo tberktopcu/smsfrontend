@@ -9,6 +9,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Auth />} />
         <Route path="/sms-manager" element={<SmsManager />} />
+        <SmsManager />
       </Routes>
     </Router>
   );
