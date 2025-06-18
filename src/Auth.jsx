@@ -68,7 +68,7 @@ export default function Auth() {
 
             if (!res.ok) {
                 const err = await res.text();
-                setMessage("Kayıt başarısız: " + err);
+                setMessage("Kayıt başarısız: Parolalar en az bir alfanümerik olmayan karakter(örneğin: !, @, #, $) içermelidir. Parolalar en az bir rakam(0–9) içermelidir.Parolalar en az bir büyük harf(A–Z) içermelidir.");
                 setMessageType("error");
                 setIsLoading(false);
                 return;
