@@ -10,49 +10,79 @@ export default function Auth() {
     const [token, setToken] = useState(localStorage.getItem("token") || "");
     const [message, setMessage] = useState("");
     const [messageType, setMessageType] = useState(null);
+    const [isLoading, setIsLoading] = useState(false);
 
     const navigate = useNavigate();
 
+    function spinnerDotStyle(delay) {
+        return {
+            width: 16,
+            height: 16,
+            borderRadius: "50%",
+            backgroundColor: "#fff",
+            animation: `bounce 1.4s infinite ease-in-out`,
+            animationDelay: `${delay * 0.2}s`
+        };
+    }
+
     const handleLogin = async () => {
         setMessage("");
-        const res = await fetch(`${baseUrl}/auth/login`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, password }),
-        });
+        setIsLoading(true);
+        try {
+            const res = await fetch(`${baseUrl}/auth/login`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email, password }),
+            });
 
-        if (!res.ok) {
-            setMessage("Email veya Şifre hatalı");
+            if (!res.ok) {
+                setMessage("Email veya Şifre hatalı");
+                setMessageType("error");
+                setIsLoading(false);
+                return;
+            }
+
+            const data = await res.json();
+            setToken(data.token);
+            localStorage.setItem("token", data.token);
+            setMessage("Giriş başarılı!");
+            setMessageType("success");
+            setIsLoading(false);
+            navigate("/sms-manager");
+        } catch (err) {
+            setMessage("Bir hata oluştu.");
             setMessageType("error");
-            return;
+            setIsLoading(false);
         }
-
-        const data = await res.json();
-        setToken(data.token);
-        localStorage.setItem("token", data.token);
-        setMessage("Giriş başarılı!");
-        setMessageType("success");
-        navigate("/sms-manager");
     };
 
     const handleRegister = async () => {
         setMessage("");
-        const res = await fetch(`${baseUrl}/auth/register`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, password }),
-        });
+        setIsLoading(true);
+        try {
+            const res = await fetch(`${baseUrl}/auth/register`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email, password }),
+            });
 
-        if (!res.ok) {
-            const err = await res.text();
-            setMessage("Kayıt başarısız: " + err);
+            if (!res.ok) {
+                const err = await res.text();
+                setMessage("Kayıt başarısız: " + err);
+                setMessageType("error");
+                setIsLoading(false);
+                return;
+            }
+
+            setMessage("Kayıt başarılı, giriş yapabilirsiniz.");
+            setMessageType("success");
+            setIsLogin(true);
+            setIsLoading(false);
+        } catch (err) {
+            setMessage("Bir hata oluştu.");
             setMessageType("error");
-            return;
+            setIsLoading(false);
         }
-
-        setMessage("Kayıt başarılı, giriş yapabilirsiniz.");
-        setMessageType("success");
-        setIsLogin(true);
     };
 
     // Pop-up (modal) stil objeleri
@@ -92,9 +122,6 @@ export default function Auth() {
         fontWeight: "600",
     };
 
-    // Diğer önceki stiller ve component kodu burada olacak...
-    // Sadece modal ve mesaj gösterimini ekliyoruz.
-
     return (
         <div style={{
             minHeight: "100vh",
@@ -109,6 +136,18 @@ export default function Auth() {
             alignItems: "center",
             justifyContent: "center",
         }}>
+            <style>
+                {`
+                @keyframes bounce {
+                    0%, 80%, 100% {
+                        transform: scale(0);
+                    }
+                    40% {
+                        transform: scale(1.0);
+                    }
+                }
+                `}
+            </style>
             <div style={{
                 width: 360,
                 boxShadow: "0 2px 8px rgb(0 0 0 / 0.1)",
@@ -216,6 +255,7 @@ export default function Auth() {
                     onClick={isLogin ? handleLogin : handleRegister}
                     onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#0047b3")}
                     onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#007bff")}
+                    disabled={isLoading}
                 >
                     {isLogin ? "Giriş Yap" : "Kayıt Ol"}
                 </button>
@@ -233,6 +273,31 @@ export default function Auth() {
                             &times;
                         </button>
                         <div style={messageTextStyle}>{message}</div>
+                    </div>
+                </div>
+            )}
+
+            {/* Loading animasyonu */}
+            {isLoading && (
+                <div style={{
+                    position: "fixed",
+                    top: 0,
+                    left: 0,
+                    width: "100vw",
+                    height: "100vh",
+                    backgroundColor: "rgba(0, 0, 0, 0.4)",
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    zIndex: 11000
+                }}>
+                    <div style={{
+                        display: "flex",
+                        gap: 10,
+                    }}>
+                        <div style={spinnerDotStyle(0)}></div>
+                        <div style={spinnerDotStyle(1)}></div>
+                        <div style={spinnerDotStyle(2)}></div>
                     </div>
                 </div>
             )}

@@ -20,13 +20,25 @@ export default function SmsManager() {
 
     const [isLoading, setIsLoading] = useState(false);
     const [deleteConfirm, setDeleteConfirm] = useState({ show: false, type: "", id: null });
-    const [popup, setPopup] = useState({ show: false, message: "" });
+    const [popup, setPopup] = useState({ show: false, message: "", type: "success" });
     const token = localStorage.getItem("token");
     const navigate = useNavigate();
 
+    // Otomatik popup kapama
+    useEffect(() => {
+        if (popup.show) {
+            const timeout = setTimeout(() => {
+                setPopup({ show: false, message: "", type: "success" });
+            }, 1000);
+            return () => clearTimeout(timeout);
+        }
+    }, [popup.show]);
+
     function logout() {
+        setIsLoading(true);
         localStorage.removeItem("token");
         navigate("/");
+        setIsLoading(false);
     }
 
     function spinnerDotStyle(delay) {
@@ -48,6 +60,8 @@ export default function SmsManager() {
 
     function closeHeaderModal() {
         setShowHeaderModal(false);
+        setNewHeader("");
+        setEditingHeader(null);
     }
 
     async function handleHeaderSave(e) {
@@ -57,28 +71,57 @@ export default function SmsManager() {
         const payload = { header: newHeader };
         const url = `${API_BASE_URL}/SmsHeader${editingHeader ? `/${editingHeader.id}` : ""}`;
         const method = editingHeader ? "PUT" : "POST";
-        const res = await fetch(url, {
-            method,
-            headers: {
-                "Authorization": `Bearer ${token}`,
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify(editingHeader ? { ...payload, id: editingHeader.id } : payload),
-        });
-        if (res.ok) {
-            await fetchHeaders();
-            setIsLoading(false);
-            closeHeaderModal();
+        try {
+            const res = await fetch(url, {
+                method,
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(editingHeader ? { ...payload, id: editingHeader.id } : payload),
+            });
+            // Başarıyla güncellendi veya eklendi ise
+            if (res.ok) {
+                await fetchHeaders();
+                setPopup({
+                    show: true,
+                    message: editingHeader ? "Başlık başarıyla güncellendi." : "Başlık başarıyla eklendi.",
+                    type: "success"
+                });
+                // Güncelleme sonrası aynı başlık üzerinde kal
+                if (editingHeader) {
+                    // Güncellenen başlığın son halini bul ve state'e yaz
+                    // API'den güncellenen başlık dönmüyorsa, mevcut state'i koru
+                    setEditingHeader({ ...editingHeader, header: newHeader });
+                    setNewHeader(newHeader);
+                } else {
+                    setNewHeader("");
+                }
+            } else {
+                setPopup({
+                    show: true,
+                    message: "Başlık kaydedilemedi.",
+                    type: "error"
+                });
+            }
+        } catch {
+            setPopup({
+                show: true,
+                message: "Bir hata oluştu.",
+                type: "error"
+            });
         }
+        setIsLoading(false);
     }
 
-    // Header silme popup'ı açılırken, önce kullanılıp kullanılmadığı kontrol edilir
+    // SMS başlığı silme: önce kullanılıp kullanılmadığı kontrol edilir, sonra onay popup'ı açılır
     function handleHeaderDelete(id) {
         const isUsed = infos.some(info => info.smsHeaderId === id);
         if (isUsed) {
             setPopup({
                 show: true,
-                message: "Bu başlık bir SMS şablonu tarafından kullanıldığı için silinemez."
+                message: "Bu başlık bir SMS şablonu tarafından kullanıldığı için silinemez.",
+                type: "error"
             });
             return;
         }
@@ -92,20 +135,37 @@ export default function SmsManager() {
 
     // Silme işlemini onayla
     async function confirmDelete() {
+        setIsLoading(true);
         if (deleteConfirm.type === "info") {
-            setIsLoading(true);
-            const res = await fetch(`${API_BASE_URL}/Info/${deleteConfirm.id}`, {
-                method: "DELETE",
-                headers: {
-                    "Authorization": `Bearer ${token}`
+            try {
+                const res = await fetch(`${API_BASE_URL}/Info/${deleteConfirm.id}`, {
+                    method: "DELETE",
+                    headers: {
+                        "Authorization": `Bearer ${token}`
+                    }
+                });
+                if (res.ok) {
+                    fetchInfos();
+                    setPopup({
+                        show: true,
+                        message: "Şablon başarıyla silindi.",
+                        type: "success"
+                    });
+                } else {
+                    setPopup({
+                        show: true,
+                        message: "Şablon silinemedi.",
+                        type: "error"
+                    });
                 }
-            });
-            if (res.ok) {
-                fetchInfos();
+            } catch {
+                setPopup({
+                    show: true,
+                    message: "Bir hata oluştu.",
+                    type: "error"
+                });
             }
-            setIsLoading(false);
         } else if (deleteConfirm.type === "header") {
-            setIsLoading(true);
             try {
                 const res = await fetch(`${API_BASE_URL}/SmsHeader/${deleteConfirm.id}`, {
                     method: "DELETE",
@@ -115,24 +175,33 @@ export default function SmsManager() {
                 });
                 if (res.ok) {
                     fetchHeaders();
+                    setPopup({
+                        show: true,
+                        message: "Başlık başarıyla silindi.",
+                        type: "success"
+                    });
+                } else {
+                    setPopup({
+                        show: true,
+                        message: "Başlık silinemedi.",
+                        type: "error"
+                    });
                 }
-            } catch (error) {
-                // Hata yönetimi
-            } finally {
-                setIsLoading(false);
+            } catch {
+                setPopup({
+                    show: true,
+                    message: "Bir hata oluştu.",
+                    type: "error"
+                });
             }
         }
+        setIsLoading(false);
         setDeleteConfirm({ show: false, type: "", id: null });
     }
 
     // Silme popup'ını kapat
     function cancelDelete() {
         setDeleteConfirm({ show: false, type: "", id: null });
-    }
-
-    // Popup'ı kapat
-    function closePopup() {
-        setPopup({ show: false, message: "" });
     }
 
     useEffect(() => {
@@ -209,35 +278,68 @@ export default function SmsManager() {
             smsText,
         };
 
-        if (editingInfo) {
-            const res = await fetch(`${API_BASE_URL}/Info/${editingInfo.id}`, {
-                method: "PUT",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${token}`
-                },
-                body: JSON.stringify({ ...payload, id: editingInfo.id }),
-            });
-            if (res.ok) {
-                fetchInfos();
-                fetchInfos();
-                setIsLoading(false);
-                closeModal();
+        try {
+            if (editingInfo) {
+                const res = await fetch(`${API_BASE_URL}/Info/${editingInfo.id}`, {
+                    method: "PUT",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ ...payload, id: editingInfo.id }),
+                });
+                if (res.ok) {
+                    fetchInfos();
+                    fetchInfos();
+                    setPopup({
+                        show: true,
+                        message: "Şablon başarıyla güncellendi.",
+                        type: "success"
+                    });
+                    setIsLoading(false);
+                    closeModal();
+                } else {
+                    setPopup({
+                        show: true,
+                        message: "Şablon güncellenemedi.",
+                        type: "error"
+                    });
+                    setIsLoading(false);
+                }
+            } else {
+                const res = await fetch(`${API_BASE_URL}/Info`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${token}`
+                    },
+                    body: JSON.stringify(payload),
+                });
+                if (res.ok) {
+                    fetchInfos();
+                    setPopup({
+                        show: true,
+                        message: "Şablon başarıyla eklendi.",
+                        type: "success"
+                    });
+                    setIsLoading(false);
+                    closeModal();
+                } else {
+                    setPopup({
+                        show: true,
+                        message: "Şablon eklenemedi.",
+                        type: "error"
+                    });
+                    setIsLoading(false);
+                }
             }
-        } else {
-            const res = await fetch(`${API_BASE_URL}/Info`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${token}`
-                },
-                body: JSON.stringify(payload),
+        } catch {
+            setPopup({
+                show: true,
+                message: "Bir hata oluştu.",
+                type: "error"
             });
-            if (res.ok) {
-                fetchInfos();
-                setIsLoading(false);
-                closeModal();
-            }
+            setIsLoading(false);
         }
     }
 
@@ -256,6 +358,42 @@ export default function SmsManager() {
           }
         `}
             </style>
+
+            {/* Ortada otomatik kaybolan popup */}
+            {popup.show && (
+                <div
+                    style={{
+                        position: "fixed",
+                        top: 0,
+                        left: 0,
+                        width: "100vw",
+                        height: "100vh",
+                        backgroundColor: "rgba(0,0,0,0.15)",
+                        display: "flex",
+                        justifyContent: "center",
+                        alignItems: "center",
+                        zIndex: 12000
+                    }}
+                >
+                    <div
+                        style={{
+                            backgroundColor: "#fff",
+                            borderRadius: 10,
+                            boxShadow: "0 4px 15px rgba(0,0,0,0.18)",
+                            padding: "28px 48px",
+                            color: popup.type === "error" ? "#dc3545" : "#28a745",
+                            fontWeight: "bold",
+                            fontSize: 18,
+                            border: `2px solid ${popup.type === "error" ? "#dc3545" : "#28a745"}`,
+                            minWidth: 260,
+                            maxWidth: 400,
+                            textAlign: "center"
+                        }}
+                    >
+                        {popup.message}
+                    </div>
+                </div>
+            )}
 
             <div
                 style={{
@@ -449,7 +587,6 @@ export default function SmsManager() {
                             alignItems: "center",
                             zIndex: 9999,
                         }}
-                        onClick={closeHeaderModal}
                     >
                         <div
                             style={{
@@ -461,9 +598,27 @@ export default function SmsManager() {
                                 boxShadow: "0 4px 15px rgba(0,0,0,0.25)",
                                 color: "#000000",
                                 fontWeight: "bold",
+                                position: "relative"
                             }}
                             onClick={(e) => e.stopPropagation()}
                         >
+                            <button
+                                onClick={closeHeaderModal}
+                                style={{
+                                    position: "absolute",
+                                    top: 10,
+                                    right: 16,
+                                    background: "transparent",
+                                    border: "none",
+                                    fontSize: 24,
+                                    color: "#888",
+                                    cursor: "pointer",
+                                    fontWeight: "bold",
+                                }}
+                                aria-label="Kapat"
+                            >
+                                &times;
+                            </button>
                             <h2 style={{ marginBottom: 16, color: "#000000" }}>
                                 {editingHeader ? "Başlık Düzenle" : "Yeni Başlık Ekle"}
                             </h2>
@@ -506,6 +661,27 @@ export default function SmsManager() {
                                     >
                                         {editingHeader ? "Güncelle" : "Ekle"}
                                     </button>
+                                    {/* Ekleme moduna dönmek için buton */}
+                                    {editingHeader && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setEditingHeader(null);
+                                                setNewHeader("");
+                                            }}
+                                            style={{
+                                                padding: "8px 16px",
+                                                cursor: "pointer",
+                                                backgroundColor: "#6c757d",
+                                                color: "#fff",
+                                                border: "none",
+                                                borderRadius: 4,
+                                                marginLeft: 8
+                                            }}
+                                        >
+                                            Yeni Başlık Ekle
+                                        </button>
+                                    )}
                                 </div>
                             </form>
 
@@ -624,57 +800,6 @@ export default function SmsManager() {
                                 }}
                             >
                                 Vazgeç
-                            </button>
-                        </div>
-                    </div>
-                )}
-
-                {/* Uyarı Popup'ı */}
-                {popup.show && (
-                    <div
-                        style={{
-                            position: "fixed",
-                            top: 0,
-                            left: 0,
-                            width: "100vw",
-                            height: "100vh",
-                            backgroundColor: "rgba(0,0,0,0.2)",
-                            display: "flex",
-                            justifyContent: "center",
-                            alignItems: "center",
-                            zIndex: 10001,
-                        }}
-                        onClick={closePopup}
-                    >
-                        <div
-                            style={{
-                                backgroundColor: "#fff",
-                                padding: 24,
-                                borderRadius: 8,
-                                minWidth: 300,
-                                maxWidth: "90vw",
-                                boxShadow: "0 4px 15px rgba(0,0,0,0.25)",
-                                color: "#dc3545",
-                                fontWeight: "bold",
-                                textAlign: "center"
-                            }}
-                            onClick={e => e.stopPropagation()}
-                        >
-                            <div style={{ marginBottom: 16 }}>
-                                {popup.message}
-                            </div>
-                            <button
-                                onClick={closePopup}
-                                style={{
-                                    padding: "8px 16px",
-                                    cursor: "pointer",
-                                    backgroundColor: "#007bff",
-                                    color: "#fff",
-                                    border: "none",
-                                    borderRadius: 4
-                                }}
-                            >
-                                Tamam
                             </button>
                         </div>
                     </div>
@@ -852,7 +977,7 @@ export default function SmsManager() {
                         display: "flex",
                         justifyContent: "center",
                         alignItems: "center",
-                        zIndex: 9999
+                        zIndex: 11000
                     }}>
                         <div style={{
                             display: "flex",
