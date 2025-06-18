@@ -24,6 +24,17 @@ export default function SmsManager() {
     const token = localStorage.getItem("token");
     const navigate = useNavigate();
 
+    // 401 için merkezi fetch fonksiyonu
+    async function fetchWithAuth(url, options = {}) {
+        const res = await fetch(url, options);
+        if (res.status === 401) {
+            localStorage.removeItem("token");
+            navigate("/auth");
+            return null;
+        }
+        return res;
+    }
+
     // Otomatik popup kapama
     useEffect(() => {
         if (popup.show) {
@@ -72,7 +83,7 @@ export default function SmsManager() {
         const url = `${API_BASE_URL}/SmsHeader${editingHeader ? `/${editingHeader.id}` : ""}`;
         const method = editingHeader ? "PUT" : "POST";
         try {
-            const res = await fetch(url, {
+            const res = await fetchWithAuth(url, {
                 method,
                 headers: {
                     "Authorization": `Bearer ${token}`,
@@ -80,7 +91,7 @@ export default function SmsManager() {
                 },
                 body: JSON.stringify(editingHeader ? { ...payload, id: editingHeader.id } : payload),
             });
-            // Başarıyla güncellendi veya eklendi ise
+            if (!res) return;
             if (res.ok) {
                 await fetchHeaders();
                 setPopup({
@@ -88,10 +99,7 @@ export default function SmsManager() {
                     message: editingHeader ? "Başlık başarıyla güncellendi." : "Başlık başarıyla eklendi.",
                     type: "success"
                 });
-                // Güncelleme sonrası aynı başlık üzerinde kal
                 if (editingHeader) {
-                    // Güncellenen başlığın son halini bul ve state'e yaz
-                    // API'den güncellenen başlık dönmüyorsa, mevcut state'i koru
                     setEditingHeader({ ...editingHeader, header: newHeader });
                     setNewHeader(newHeader);
                 } else {
@@ -114,7 +122,6 @@ export default function SmsManager() {
         setIsLoading(false);
     }
 
-    // SMS başlığı silme: önce kullanılıp kullanılmadığı kontrol edilir, sonra onay popup'ı açılır
     function handleHeaderDelete(id) {
         const isUsed = infos.some(info => info.smsHeaderId === id);
         if (isUsed) {
@@ -128,22 +135,21 @@ export default function SmsManager() {
         setDeleteConfirm({ show: true, type: "header", id });
     }
 
-    // Info silme popup'ı aç
     function handleDelete(id) {
         setDeleteConfirm({ show: true, type: "info", id });
     }
 
-    // Silme işlemini onayla
     async function confirmDelete() {
         setIsLoading(true);
         if (deleteConfirm.type === "info") {
             try {
-                const res = await fetch(`${API_BASE_URL}/Info/${deleteConfirm.id}`, {
+                const res = await fetchWithAuth(`${API_BASE_URL}/Info/${deleteConfirm.id}`, {
                     method: "DELETE",
                     headers: {
                         "Authorization": `Bearer ${token}`
                     }
                 });
+                if (!res) return;
                 if (res.ok) {
                     fetchInfos();
                     setPopup({
@@ -167,12 +173,13 @@ export default function SmsManager() {
             }
         } else if (deleteConfirm.type === "header") {
             try {
-                const res = await fetch(`${API_BASE_URL}/SmsHeader/${deleteConfirm.id}`, {
+                const res = await fetchWithAuth(`${API_BASE_URL}/SmsHeader/${deleteConfirm.id}`, {
                     method: "DELETE",
                     headers: {
                         "Authorization": `Bearer ${token}`
                     }
                 });
+                if (!res) return;
                 if (res.ok) {
                     fetchHeaders();
                     setPopup({
@@ -199,7 +206,6 @@ export default function SmsManager() {
         setDeleteConfirm({ show: false, type: "", id: null });
     }
 
-    // Silme popup'ını kapat
     function cancelDelete() {
         setDeleteConfirm({ show: false, type: "", id: null });
     }
@@ -207,16 +213,18 @@ export default function SmsManager() {
     useEffect(() => {
         fetchHeaders();
         fetchInfos();
+        // eslint-disable-next-line
     }, []);
 
     async function fetchHeaders() {
         setIsLoading(true);
         try {
-            const res = await fetch(`${API_BASE_URL}/SmsHeader`, {
+            const res = await fetchWithAuth(`${API_BASE_URL}/SmsHeader`, {
                 headers: {
                     "Authorization": `Bearer ${token}`
                 }
             });
+            if (!res) return;
             const data = await res.json();
             setHeaders(data);
         } catch (error) {
@@ -229,11 +237,12 @@ export default function SmsManager() {
     async function fetchInfos() {
         setIsLoading(true);
         try {
-            const res = await fetch(`${API_BASE_URL}/Info`, {
+            const res = await fetchWithAuth(`${API_BASE_URL}/Info`, {
                 headers: {
                     "Authorization": `Bearer ${token}`
                 }
             });
+            if (!res) return;
             const data = await res.json();
             setInfos(data.sort((a, b) => b.id - a.id));
         } catch (error) {
@@ -280,7 +289,7 @@ export default function SmsManager() {
 
         try {
             if (editingInfo) {
-                const res = await fetch(`${API_BASE_URL}/Info/${editingInfo.id}`, {
+                const res = await fetchWithAuth(`${API_BASE_URL}/Info/${editingInfo.id}`, {
                     method: "PUT",
                     headers: {
                         "Content-Type": "application/json",
@@ -288,6 +297,7 @@ export default function SmsManager() {
                     },
                     body: JSON.stringify({ ...payload, id: editingInfo.id }),
                 });
+                if (!res) return;
                 if (res.ok) {
                     fetchInfos();
                     fetchInfos();
@@ -307,7 +317,7 @@ export default function SmsManager() {
                     setIsLoading(false);
                 }
             } else {
-                const res = await fetch(`${API_BASE_URL}/Info`, {
+                const res = await fetchWithAuth(`${API_BASE_URL}/Info`, {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
@@ -315,6 +325,7 @@ export default function SmsManager() {
                     },
                     body: JSON.stringify(payload),
                 });
+                if (!res) return;
                 if (res.ok) {
                     fetchInfos();
                     setPopup({
@@ -661,7 +672,6 @@ export default function SmsManager() {
                                     >
                                         {editingHeader ? "Güncelle" : "Ekle"}
                                     </button>
-                                    {/* Ekleme moduna dönmek için buton */}
                                     {editingHeader && (
                                         <button
                                             type="button"
@@ -741,7 +751,6 @@ export default function SmsManager() {
                     </div>
                 )}
 
-                {/* Silme Onay Popup'ı */}
                 {deleteConfirm.show && (
                     <div
                         style={{
