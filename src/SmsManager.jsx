@@ -29,7 +29,7 @@ export default function SmsManager() {
         const res = await fetch(url, options);
         if (res.status === 401) {
             localStorage.removeItem("token");
-            navigate("/auth");
+            navigate("/");
             return null;
         }
         return res;
